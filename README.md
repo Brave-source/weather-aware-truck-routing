@@ -43,3 +43,12 @@ npm run dev
 ```
 
 Set `VITE_MAPBOX_ACCESS_TOKEN` in `frontend/.env.local` to a public, origin-restricted Mapbox token. The backend API URL defaults to `http://localhost:8000/api`.
+
+## Deploy on Render
+
+The root `render.yaml` defines a free Django API service and a free React static site. To deploy, push the project to GitHub, create a new Blueprint in Render, and select the repository. Render generates the Django secret and prompts for two Mapbox tokens:
+
+- `MAPBOX_ACCESS_TOKEN` is the private backend token for geocoding and routing.
+- `VITE_MAPBOX_ACCESS_TOKEN` is included in the public frontend build for the map and reverse geocoding. Restrict it to the deployed site's origin.
+
+BTW- NOTE: Render's free backend sleeps after 15 minutes without traffic; the first request after that can take about a minute. The app does not rely on persistent database data, so its okay.
