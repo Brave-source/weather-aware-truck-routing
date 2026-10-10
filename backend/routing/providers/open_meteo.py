@@ -3,18 +3,31 @@ from __future__ import annotations
 from bisect import bisect_right
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
+from hashlib import sha256
 from math import ceil, isfinite
 from typing import Any, Sequence
 from urllib.parse import urlencode
 
 from django.conf import settings
+from django.core.cache import cache
 
 from ..domain.risk import WeatherReading
 from .http import ProviderError, get_json
 
 MAX_FORECAST_HOURS = 16 * 24
-LOCATION_BATCH_SIZE = 40
+LOCATION_BATCH_SIZE = 100
 MAX_CONCURRENT_REQUESTS = 8
+WEATHER_CACHE_TTL_SECONDS = 15 * 60
+
+
+def _cached_get_json(url: str) -> Any:
+    key = "open-meteo:" + sha256(url.encode("utf-8")).hexdigest()
+    response = cache.get(key)
+    if response is not None:
+        return response
+    response = get_json(url, timeout_seconds=30)
+    cache.set(key, response, timeout=WEATHER_CACHE_TTL_SECONDS)
+    return response
 
 
 def _number(value: Any, field: str) -> float:
@@ -102,7 +115,7 @@ class OpenMeteoProvider:
             }
             if api_key:
                 params["apikey"] = api_key
-            response: Any = get_json(f"{base_url}?{urlencode(params)}", timeout_seconds=30)
+            response: Any = _cached_get_json(f"{base_url}?{urlencode(params)}")
             if isinstance(response, dict):
                 result_locations = [response]
             elif isinstance(response, list):

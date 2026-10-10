@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import mapboxgl from 'mapbox-gl'
+import type { GeoJSONSource, LngLatBounds, Map as MapboxMap } from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { requestCurrentLocation, reverseGeocode, type ApproximateLocation } from './geolocation'
 
@@ -89,7 +89,8 @@ type Props = {
 
 export default function RouteMap({ analysis, selectedRouteId, corridorForecast, focusLocation }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const mapRef = useRef<mapboxgl.Map | null>(null)
+  const mapRef = useRef<MapboxMap | null>(null)
+  const mapboxRef = useRef<{ LngLatBounds: new () => LngLatBounds } | null>(null)
   const hasAnalysisRef = useRef(Boolean(analysis))
   const hasManualFocusRef = useRef(Boolean(focusLocation))
   const [mapReady, setMapReady] = useState(false)
@@ -125,75 +126,86 @@ export default function RouteMap({ analysis, selectedRouteId, corridorForecast, 
 
   useEffect(() => {
     if (!containerRef.current || !MAP_TOKEN) return
-    const map = new mapboxgl.Map({
-      container: containerRef.current,
-      accessToken: MAP_TOKEN,
-      style: 'mapbox://styles/mapbox/light-v11',
-      center: [0, 20],
-      zoom: 1.7,
-      projection: 'mercator',
-      attributionControl: true,
-    })
     let isDisposed = false
+    let map: MapboxMap | null = null
     let reverseGeocodeController: AbortController | null = null
-    map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right')
-    map.once('load', () => {
-      map.addSource('route-lines', { type: 'geojson', data: emptyFeatureCollection() })
-      map.addSource('route-checkpoints', { type: 'geojson', data: emptyFeatureCollection() })
-      map.addLayer({
-        id: 'route-lines',
-        type: 'line',
-        source: 'route-lines',
-        layout: { 'line-join': 'round', 'line-cap': 'round' },
-        paint: {
-          'line-color': ['case', ['get', 'isRecommended'], '#1c8064', '#5685a0'],
-          'line-width': ['case', ['==', ['get', 'routeId'], selectedRouteId ?? ''], 6, 4],
-          'line-opacity': ['case', ['==', ['get', 'routeId'], selectedRouteId ?? ''], 0.95, 0.65],
-        },
-      })
-      map.addLayer({
-        id: 'route-checkpoints',
-        type: 'circle',
-        source: 'route-checkpoints',
-        paint: {
-          'circle-radius': ['case', ['==', ['get', 'routeId'], selectedRouteId ?? ''], 5, 3.5],
-          'circle-color': ['get', 'color'],
-          'circle-stroke-color': '#ffffff',
-          'circle-stroke-width': 1.5,
-          'circle-opacity': 0.92,
-        },
-      })
-      setMapReady(true)
 
-      // Keep a late location result from overriding a route or chosen origin.
-      void requestCurrentLocation().then(async (location) => {
-        if (isDisposed || hasAnalysisRef.current || hasManualFocusRef.current) return
-        reverseGeocodeController = new AbortController()
-        try {
-          const country = await reverseGeocode(location, 'country', reverseGeocodeController.signal)
-          if (isDisposed || hasAnalysisRef.current || hasManualFocusRef.current) return
-          if (country?.bounds) {
-            const [west, south, east, north] = country.bounds
-            map.fitBounds([[west, south], [east, north]], { padding: 48, maxZoom: 5.5, duration: 800 })
-          } else {
-            map.flyTo({ center: [location.longitude, location.latitude], zoom: 3.8, duration: 800 })
-          }
-        } catch {
-          if (!isDisposed && !hasAnalysisRef.current && !hasManualFocusRef.current) {
-            map.flyTo({ center: [location.longitude, location.latitude], zoom: 3.8, duration: 800 })
-          }
-        }
-      }).catch(() => {
-        // Keep the global map view when location access is denied or unavailable.
+    void import('mapbox-gl').then(({ default: mapboxgl }) => {
+      if (isDisposed || !containerRef.current) return
+      mapboxRef.current = mapboxgl
+      const mapInstance = new mapboxgl.Map({
+        container: containerRef.current,
+        accessToken: MAP_TOKEN,
+        style: 'mapbox://styles/mapbox/light-v11',
+        center: [0, 20],
+        zoom: 1.7,
+        projection: 'mercator',
+        attributionControl: true,
       })
+      map = mapInstance
+      mapRef.current = mapInstance
+      mapInstance.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right')
+      mapInstance.once('load', () => {
+        mapInstance.addSource('route-lines', { type: 'geojson', data: emptyFeatureCollection() })
+        mapInstance.addSource('route-checkpoints', { type: 'geojson', data: emptyFeatureCollection() })
+        mapInstance.addLayer({
+          id: 'route-lines',
+          type: 'line',
+          source: 'route-lines',
+          layout: { 'line-join': 'round', 'line-cap': 'round' },
+          paint: {
+            'line-color': ['case', ['get', 'isRecommended'], '#1c8064', '#5685a0'],
+            'line-width': ['case', ['==', ['get', 'routeId'], selectedRouteId ?? ''], 6, 4],
+            'line-opacity': ['case', ['==', ['get', 'routeId'], selectedRouteId ?? ''], 0.95, 0.65],
+          },
+        })
+        mapInstance.addLayer({
+          id: 'route-checkpoints',
+          type: 'circle',
+          source: 'route-checkpoints',
+          paint: {
+            'circle-radius': ['case', ['==', ['get', 'routeId'], selectedRouteId ?? ''], 5, 3.5],
+            'circle-color': ['get', 'color'],
+            'circle-stroke-color': '#ffffff',
+            'circle-stroke-width': 1.5,
+            'circle-opacity': 0.92,
+          },
+        })
+        setMapReady(true)
+
+        // Keep a late location result from overriding a route or chosen origin.
+        void requestCurrentLocation().then(async (location) => {
+          if (isDisposed || hasAnalysisRef.current || hasManualFocusRef.current) return
+          reverseGeocodeController = new AbortController()
+          try {
+            const country = await reverseGeocode(location, 'country', reverseGeocodeController.signal)
+            if (isDisposed || hasAnalysisRef.current || hasManualFocusRef.current) return
+            if (country?.bounds) {
+              const [west, south, east, north] = country.bounds
+              mapInstance.fitBounds([[west, south], [east, north]], { padding: 48, maxZoom: 5.5, duration: 800 })
+            } else {
+              mapInstance.flyTo({ center: [location.longitude, location.latitude], zoom: 3.8, duration: 800 })
+            }
+          } catch {
+            if (!isDisposed && !hasAnalysisRef.current && !hasManualFocusRef.current) {
+              mapInstance.flyTo({ center: [location.longitude, location.latitude], zoom: 3.8, duration: 800 })
+            }
+          }
+        }).catch(() => {
+          // Keep the global map view when location access is denied or unavailable.
+        })
+      })
+    }).catch(() => {
+      if (!isDisposed) setMapReady(false)
     })
-    mapRef.current = map
+
     return () => {
       isDisposed = true
       reverseGeocodeController?.abort()
       setMapReady(false)
       mapRef.current = null
-      map.remove()
+      mapboxRef.current = null
+      map?.remove()
     }
   }, [])
 
@@ -206,12 +218,14 @@ export default function RouteMap({ analysis, selectedRouteId, corridorForecast, 
   useEffect(() => {
     const map = mapRef.current
     if (!map || !mapReady) return
-    const lineSource = map.getSource('route-lines') as mapboxgl.GeoJSONSource | undefined
-    const checkpointSource = map.getSource('route-checkpoints') as mapboxgl.GeoJSONSource | undefined
+    const lineSource = map.getSource('route-lines') as GeoJSONSource | undefined
+    const checkpointSource = map.getSource('route-checkpoints') as GeoJSONSource | undefined
     lineSource?.setData(routeFeatures)
     checkpointSource?.setData(checkpointFeatures)
     if (analysis?.routes.length) {
-      const bounds = new mapboxgl.LngLatBounds()
+      const Mapbox = mapboxRef.current
+      if (!Mapbox) return
+      const bounds = new Mapbox.LngLatBounds()
       analysis.routes.forEach((route) => route.geometry.forEach((coordinate) => bounds.extend(coordinate)))
       map.fitBounds(bounds, { padding: 70, maxZoom: 12, duration: 500 })
     }

@@ -1,6 +1,8 @@
-import { useEffect, useState, type FormEvent, type KeyboardEvent } from 'react'
-import RouteMap, { type AnalysisResult, type CorridorForecast, type RouteResult } from './RouteMap'
+import { lazy, Suspense, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
+import type { AnalysisResult, CorridorForecast, RouteResult } from './RouteMap'
 import { requestCurrentLocation, reverseGeocode, type ApproximateLocation } from './geolocation'
+
+const RouteMap = lazy(() => import('./RouteMap'))
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000/api'
 const HAS_MAP_DISPLAY_TOKEN = Boolean(import.meta.env.VITE_MAPBOX_ACCESS_TOKEN)
@@ -206,6 +208,8 @@ export default function App() {
   const [locationLoading, setLocationLoading] = useState(false)
   const [locationMessage, setLocationMessage] = useState('')
   const [focusLocation, setFocusLocation] = useState<ApproximateLocation | null>(null)
+  const [mapVisible, setMapVisible] = useState(false)
+  const mapStageRef = useRef<HTMLDivElement | null>(null)
 
   async function useCurrentLocationAsOrigin(): Promise<string | null> {
     setLocationLoading(true)
@@ -305,6 +309,29 @@ export default function App() {
     }
   }, [analysis, appliedForecastHour])
 
+  useEffect(() => {
+    if (mapVisible) return
+    if (analysis || focusLocation) {
+      setMapVisible(true)
+      return
+    }
+
+    const mapStage = mapStageRef.current
+    if (!mapStage || !('IntersectionObserver' in window)) {
+      setMapVisible(true)
+      return
+    }
+
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) {
+        setMapVisible(true)
+        observer.disconnect()
+      }
+    }, { rootMargin: '160px' })
+    observer.observe(mapStage)
+    return () => observer.disconnect()
+  }, [analysis, focusLocation, mapVisible])
+
   const selectedRoute: RouteResult | undefined = analysis?.routes.find((route) => route.id === selectedRouteId)
 
   function durationLabel(seconds: number) {
@@ -386,7 +413,7 @@ export default function App() {
               <LocationAutocomplete id="destination" value={destination} onChange={setDestination} placeholder="City, address, or ZIP code" pinClassName="pin-destination" />
 
               <div className="field-row">
-                <div className="field-group"><label className="field-label" htmlFor="departure">DEPARTURE</label><input id="departure" className="text-input" type="datetime-local" value={departureTime} onChange={(event) => setDepartureTime(event.target.value)} required /></div>
+                <div className="field-group"><label className="field-label" htmlFor="departure">DEPARTURE</label><input id="departure" className="text-input" type="datetime-local" value={departureTime} onChange={(event) => { setDepartureTime(event.target.value); event.currentTarget.blur() }} required /></div>
                 <div className="field-group"><label className="field-label" htmlFor="load">LOAD WEIGHT <span>(lb)</span></label><input id="load" className="text-input" type="number" min="0" step="1" value={loadWeight} onChange={(event) => setLoadWeight(event.target.value)} placeholder="e.g. 32,000" required /></div>
               </div>
 
@@ -399,7 +426,14 @@ export default function App() {
 
           <section className="map-panel" aria-label="Route map and analysis results">
             <div className="map-toolbar"><div><div className="eyebrow">TRIP OVERVIEW</div><h2>Route conditions</h2></div><span className="map-state">{analysis ? `${analysis.route_count} OF 3 ROUTES` : 'AWAITING TRIP DETAILS'}</span></div>
-            <div className="map-stage"><RouteMap analysis={analysis} selectedRouteId={selectedRouteId} corridorForecast={corridorForecast} focusLocation={focusLocation} /><div className="map-legend"><span><i className="legend-line legend-primary" /> Recommended route</span><span><i className="legend-line legend-alt" /> Other options</span><span><i className="legend-dot" /> Forecast risk</span></div></div>
+            <div className="map-stage" ref={mapStageRef}>
+              {mapVisible ? (
+                <Suspense fallback={<div className="map-deferred" role="status">Loading interactive map…</div>}>
+                  <RouteMap analysis={analysis} selectedRouteId={selectedRouteId} corridorForecast={corridorForecast} focusLocation={focusLocation} />
+                </Suspense>
+              ) : <div className="map-deferred">Interactive map loads when this panel is visible</div>}
+              {mapVisible && <div className="map-legend"><span><i className="legend-line legend-primary" /> Recommended route</span><span><i className="legend-line legend-alt" /> Other options</span><span><i className="legend-dot" /> Forecast risk</span></div>}
+            </div>
             <div className="forecast-bar">
               <div><span className="forecast-glyph">◷</span><div><strong>Forecast timeline</strong><small>{analysis ? corridorForecast ? `Map colors: ${localTime(corridorForecast.forecast_time)} · table: checkpoint ETAs` : 'Loading corridor forecast…' : 'Choose a point in the next 48 hours'}</small></div></div>
               <div className="forecast-slider-control">
