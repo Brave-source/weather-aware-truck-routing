@@ -66,8 +66,8 @@ export type CorridorForecast = {
 
 const MAP_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
 
-function emptyFeatureCollection(): GeoJSON.FeatureCollection {
-  return { type: 'FeatureCollection', features: [] }
+function emptyFeatureCollection() {
+  return { type: 'FeatureCollection' as const, features: [] }
 }
 
 function riskColor(risk: RiskName) {
