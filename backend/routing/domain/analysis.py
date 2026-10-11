@@ -6,7 +6,7 @@ from django.utils import timezone
 
 from ..providers.http import ProviderError
 from ..providers.mapbox import MapboxProvider
-from ..providers.open_meteo import OpenMeteoProvider
+from ..providers.weather_api import WeatherApiProvider
 from .checkpoints import place_checkpoints
 from .risk import RiskLevel, classify_checkpoint, rank_route_key, summarize_route_risk
 
@@ -53,10 +53,7 @@ def analyze_trip(
             for checkpoint in checkpoints
         )
 
-    weather_readings = OpenMeteoProvider().fetch_at(
-        provider_locations,
-        horizon_until=departure_time + timedelta(hours=48),
-    )
+    weather_readings = WeatherApiProvider().fetch_at(provider_locations)
     if len(weather_readings) != len(provider_locations):
         raise ProviderError("Weather data did not match all route checkpoints.")
 
@@ -150,7 +147,7 @@ def analyze_trip(
         "recommendation_id": recommendation,
         "routes": results,
         "warnings": warnings,
-        "weather_source": "Open-Meteo",
+        "weather_source": "WeatherAPI.com",
         "routing_source": "Mapbox Directions",
         "generated_at": timezone.now().isoformat(),
     }

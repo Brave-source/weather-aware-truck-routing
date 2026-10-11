@@ -16,6 +16,8 @@ services:
         value: "false"
       - key: MAPBOX_ACCESS_TOKEN
         sync: false
+      - key: WEATHERAPI_API_KEY
+        sync: false
       - key: CORS_ALLOWED_ORIGINS
         fromService:
           type: web

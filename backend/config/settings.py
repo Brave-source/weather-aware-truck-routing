@@ -59,10 +59,7 @@ CORS_ALLOWED_ORIGINS = _csv_setting("CORS_ALLOWED_ORIGINS", "http://localhost:51
 
 MAPBOX_ACCESS_TOKEN = os.environ.get("MAPBOX_ACCESS_TOKEN", "")
 GEOCODING_COUNTRY = os.environ.get("GEOCODING_COUNTRY", "").strip()
-OPEN_METEO_API_BASE = os.environ.get(
-    "OPEN_METEO_API_BASE", "https://api.open-meteo.com/v1/forecast"
-)
-OPEN_METEO_API_KEY = os.environ.get("OPEN_METEO_API_KEY", "")
+WEATHERAPI_API_KEY = os.environ.get("WEATHERAPI_API_KEY", "").strip()
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [],

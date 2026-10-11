@@ -413,7 +413,7 @@ export default function App() {
               <LocationAutocomplete id="destination" value={destination} onChange={setDestination} placeholder="City, address, or ZIP code" pinClassName="pin-destination" />
 
               <div className="field-row">
-                <div className="field-group"><label className="field-label" htmlFor="departure">DEPARTURE</label><input id="departure" className="text-input" type="datetime-local" value={departureTime} onChange={(event) => { setDepartureTime(event.target.value); event.currentTarget.blur() }} required /></div>
+                <div className="field-group"><label className="field-label" htmlFor="departure">DEPARTURE</label><input id="departure" className="text-input" type="datetime-local" value={departureTime} onChange={(event) => { setDepartureTime(event.target.value); event.currentTarget.blur() }} required /><small className="field-hint">Weather forecasts are available up to 3 days ahead; trip checkpoints must fall within that window.</small></div>
                 <div className="field-group"><label className="field-label" htmlFor="load">LOAD WEIGHT <span>(lb)</span></label><input id="load" className="text-input" type="number" min="0" step="1" value={loadWeight} onChange={(event) => setLoadWeight(event.target.value)} placeholder="e.g. 32,000" required /></div>
               </div>
 
@@ -461,7 +461,7 @@ export default function App() {
             ) : <div className="route-summary-placeholder"><span className="summary-dash" /><span>Three route options, checkpoint risks, ETAs, and summaries will appear after analysis.</span></div>}
           </section>
         </div>
-        <footer className="page-footer"><span>Weather-aware routing</span><span>{analysis ? <>Weather data by <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">{analysis.weather_source}</a> (units converted and risk classified) · Routes: {analysis.routing_source}</> : 'Forecasts are estimates and may change as conditions update.'}</span></footer>
+        <footer className="page-footer"><span>Weather-aware routing</span><span>{analysis ? <>Weather data by <a href="https://www.weatherapi.com/" target="_blank" rel="noreferrer">{analysis.weather_source}</a> (units converted and risk classified) · Routes: {analysis.routing_source}</> : 'Forecasts are estimates and may change as conditions update.'}</span></footer>
       </section>
     </main>
   )

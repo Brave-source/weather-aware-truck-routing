@@ -9,7 +9,7 @@ from .domain.analysis import analyze_trip
 from .domain.risk import classify_checkpoint
 from .providers.http import ProviderError
 from .providers.mapbox import MapboxProvider
-from .providers.open_meteo import OpenMeteoProvider
+from .providers.weather_api import ForecastWindowError, WeatherApiProvider
 from .serializers import (
     CorridorForecastRequestSerializer,
     LocationSuggestionRequestSerializer,
@@ -48,6 +48,8 @@ def analyze_route(request):
         )
     except ValueError as error:
         return Response({"message": str(error)}, status=status.HTTP_400_BAD_REQUEST)
+    except ForecastWindowError as error:
+        return Response({"message": str(error)}, status=status.HTTP_400_BAD_REQUEST)
     except ProviderError as error:
         return Response({"message": str(error)}, status=status.HTTP_502_BAD_GATEWAY)
     return Response(result)
@@ -70,10 +72,11 @@ def analyze_corridor_forecast(request):
         for point in checkpoints
     ]
     try:
-        readings = OpenMeteoProvider().fetch_at(
+        readings = WeatherApiProvider().fetch_at(
             locations,
-            horizon_until=data["departure_time"] + timedelta(hours=48),
         )
+    except ForecastWindowError as error:
+        return Response({"message": str(error)}, status=status.HTTP_400_BAD_REQUEST)
     except ProviderError as error:
         return Response({"message": str(error)}, status=status.HTTP_502_BAD_GATEWAY)
 
@@ -98,6 +101,6 @@ def analyze_corridor_forecast(request):
             "forecast_time": forecast_time.isoformat(),
             "forecast_offset_hours": data["forecast_offset_hours"],
             "routes": routes,
-            "weather_source": "Open-Meteo",
+            "weather_source": "WeatherAPI.com",
         }
     )

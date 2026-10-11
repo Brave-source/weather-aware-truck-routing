@@ -10,7 +10,7 @@ from routing.providers.mapbox import CandidateRoute, ResolvedLocation
 
 
 class AnalyzeTripTests(SimpleTestCase):
-    @patch('routing.domain.analysis.OpenMeteoProvider')
+    @patch('routing.domain.analysis.WeatherApiProvider')
     @patch('routing.domain.analysis.MapboxProvider')
     def test_recommends_the_lower_risk_route_even_when_it_takes_longer(self, mapbox_class, weather_class):
         routing = mapbox_class.return_value
@@ -46,3 +46,4 @@ class AnalyzeTripTests(SimpleTestCase):
         self.assertEqual(result['routes'][2]['risk_summary']['severe_miles'], 100)
         self.assertTrue(all('_sort_key' not in route for route in result['routes']))
         weather_class.return_value.fetch_at.assert_called_once()
+        self.assertEqual(weather_class.return_value.fetch_at.call_args.kwargs, {})
